@@ -8,9 +8,15 @@
 </head>
 <body>
 
-  <header class="app-header">
+ <header class="app-header">
     <h1>SkyPulse Weather</h1>
     <p class="tagline">Real-time forecasts & atmospheric metrics</p>
+    
+    <!-- Unit Selector Controls -->
+    <div class="unit-toggle" role="group" aria-label="Temperature unit selection">
+      <button type="button" id="unit-c" class="unit-btn active" data-unit="celsius" aria-pressed="true">°C</button>
+      <button type="button" id="unit-f" class="unit-btn" data-unit="fahrenheit" aria-pressed="false">°F</button>
+    </div>
   </header>
 
   <main class="dashboard-container">
