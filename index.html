@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Real-Time Weather Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="app-header">
+    <h1>SkyPulse Weather</h1>
+    <p class="tagline">Real-time forecasts & atmospheric metrics</p>
+  </header>
+
+  <main class="dashboard-container">
+    <!-- Search Form -->
+    <form id="search-form" class="search-bar" role="search">
+      <label for="city-input" class="visually-hidden">Search for a city</label>
+      <input 
+        type="search" 
+        id="city-input" 
+        placeholder="Search city (e.g., Tokyo, London, New York)..." 
+        required 
+        autocomplete="off"
+      >
+      <button type="submit" id="search-btn">Search</button>
+    </form>
+
+    <!-- Accessible Notification/Status Region -->
+    <div id="status-message" class="status-box" role="status" aria-live="polite"></div>
+
+    <!-- Weather Display Area -->
+    <section id="weather-display" class="weather-card" aria-label="Current Weather Conditions">
+      <div class="placeholder-text">Enter a city name above to view current weather.</div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Powered by <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo API</a></p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
