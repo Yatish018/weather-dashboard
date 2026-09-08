@@ -6,6 +6,7 @@ let lastWeatherData = null;
 // --- DOM Element References ---
 const searchForm = document.getElementById("search-form");
 const cityInput = document.getElementById("city-input");
+const geoBtn = document.getElementById("geo-btn");
 const weatherDisplay = document.getElementById("weather-display");
 const statusMessage = document.getElementById("status-message");
 const unitButtons = document.querySelectorAll(".unit-btn");
@@ -49,7 +50,7 @@ function setStatus(text = "", type = "") {
   statusMessage.className = `status-box ${type}`.trim();
 }
 
-// --- Network Functions ---
+// --- Network & Location Functions ---
 async function fetchCoordinates(city) {
   const endpoint = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=en&format=json`;
   const response = await fetch(endpoint);
@@ -67,8 +68,23 @@ async function fetchCoordinates(city) {
   return { name, country, latitude, longitude };
 }
 
+async function fetchCityFromCoordinates(lat, lon) {
+  try {
+    const endpoint = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const response = await fetch(endpoint);
+    if (response.ok) {
+      const data = await response.json();
+      const city = data.city || data.locality || "Current Location";
+      const country = data.countryCode || data.countryName || "";
+      return { name: city, country, latitude: lat, longitude: lon };
+    }
+  } catch (err) {
+    // Graceful fallback if reverse geocoding is unavailable
+  }
+  return { name: "Your Location", country: "", latitude: lat, longitude: lon };
+}
+
 async function fetchWeatherData(lat, lon) {
-  // Added daily parameters for weather codes and min/max temperatures
   const endpoint = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
   const response = await fetch(endpoint);
 
@@ -86,7 +102,7 @@ function renderWeather(location, weather) {
 
   weatherDisplay.innerHTML = `
     <div class="weather-icon" aria-hidden="true">${meta.icon}</div>
-    <h2 class="weather-location">${location.name}, ${location.country || ""}</h2>
+    <h2 class="weather-location">${location.name}${location.country ? `, ${location.country}` : ""}</h2>
     <p class="weather-condition">${meta.label}</p>
     <div class="weather-temp">${formatTemperature(current.temperature_2m)}</div>
     <div class="metrics-grid">
@@ -107,18 +123,15 @@ function renderWeather(location, weather) {
 }
 
 function renderForecast(daily) {
-  // Unhide the section container
   forecastSection.hidden = false;
   forecastGrid.innerHTML = "";
 
-  // Render the next 5 days
   for (let i = 0; i < 5; i++) {
     const dateStr = daily.time[i];
     const code = daily.weather_code[i];
     const maxTemp = daily.temperature_2m_max[i];
     const minTemp = daily.temperature_2m_min[i];
 
-    // Append 'T00:00:00' to prevent timezone off-by-one errors when parsing ISO dates
     const date = new Date(`${dateStr}T00:00:00`);
     const dayLabel = i === 0 ? "Today" : date.toLocaleDateString("en-US", { weekday: "short" });
     const meta = getWeatherMeta(code);
@@ -138,7 +151,7 @@ function renderForecast(daily) {
   }
 }
 
-// --- Controller Function ---
+// --- Controller Functions ---
 async function handleSearch(city) {
   setStatus("Fetching atmospheric conditions...", "loading");
 
@@ -146,7 +159,6 @@ async function handleSearch(city) {
     const location = await fetchCoordinates(city);
     const weather = await fetchWeatherData(location.latitude, location.longitude);
 
-    // Cache responses for instant client-side unit toggling
     lastLocationData = location;
     lastWeatherData = weather;
     localStorage.setItem("skypulse_last_city", location.name);
@@ -159,7 +171,57 @@ async function handleSearch(city) {
   }
 }
 
-// --- Unit Toggle Listener ---
+async function handleGeolocation() {
+  if (!navigator.geolocation) {
+    setStatus("Geolocation is not supported by your browser.", "error");
+    return;
+  }
+
+  setStatus("Acquiring GPS coordinates...", "loading");
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const { latitude, longitude } = position.coords;
+      setStatus("Loading local atmospheric data...", "loading");
+
+      try {
+        const location = await fetchCityFromCoordinates(latitude, longitude);
+        const weather = await fetchWeatherData(latitude, longitude);
+
+        lastLocationData = location;
+        lastWeatherData = weather;
+        localStorage.setItem("skypulse_last_city", location.name);
+
+        renderWeather(location, weather);
+        renderForecast(weather.daily);
+        setStatus("");
+      } catch (err) {
+        setStatus("Failed to load weather for your location.", "error");
+      }
+    },
+    (error) => {
+      if (error.code === error.PERMISSION_DENIED) {
+        setStatus("Location permission denied. Please search manually.", "error");
+      } else {
+        setStatus("Unable to detect current location.", "error");
+      }
+    },
+    { timeout: 10000 }
+  );
+}
+
+// --- Event Listeners ---
+searchForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const query = cityInput.value.trim();
+  if (!query) return;
+
+  handleSearch(query);
+  cityInput.value = "";
+});
+
+geoBtn.addEventListener("click", handleGeolocation);
+
 unitButtons.forEach((btn) => {
   btn.addEventListener("click", () => {
     const selectedUnit = btn.dataset.unit;
@@ -174,22 +236,11 @@ unitButtons.forEach((btn) => {
       b.setAttribute("aria-pressed", String(isActive));
     });
 
-    // Re-render both views instantly without hitting the network
     if (lastLocationData && lastWeatherData) {
       renderWeather(lastLocationData, lastWeatherData);
       renderForecast(lastWeatherData.daily);
     }
   });
-});
-
-// --- Search Form Listener ---
-searchForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const query = cityInput.value.trim();
-  if (!query) return;
-
-  handleSearch(query);
-  cityInput.value = "";
 });
 
 // --- Initial App Boot ---
