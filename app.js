@@ -9,6 +9,8 @@ const cityInput = document.getElementById("city-input");
 const weatherDisplay = document.getElementById("weather-display");
 const statusMessage = document.getElementById("status-message");
 const unitButtons = document.querySelectorAll(".unit-btn");
+const forecastSection = document.getElementById("forecast-section");
+const forecastGrid = document.getElementById("forecast-grid");
 
 // --- WMO Weather Code Translator ---
 const weatherCodeMap = {
@@ -66,7 +68,8 @@ async function fetchCoordinates(city) {
 }
 
 async function fetchWeatherData(lat, lon) {
-  const endpoint = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&timezone=auto`;
+  // Added daily parameters for weather codes and min/max temperatures
+  const endpoint = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto`;
   const response = await fetch(endpoint);
 
   if (!response.ok) {
@@ -103,6 +106,38 @@ function renderWeather(location, weather) {
   `;
 }
 
+function renderForecast(daily) {
+  // Unhide the section container
+  forecastSection.hidden = false;
+  forecastGrid.innerHTML = "";
+
+  // Render the next 5 days
+  for (let i = 0; i < 5; i++) {
+    const dateStr = daily.time[i];
+    const code = daily.weather_code[i];
+    const maxTemp = daily.temperature_2m_max[i];
+    const minTemp = daily.temperature_2m_min[i];
+
+    // Append 'T00:00:00' to prevent timezone off-by-one errors when parsing ISO dates
+    const date = new Date(`${dateStr}T00:00:00`);
+    const dayLabel = i === 0 ? "Today" : date.toLocaleDateString("en-US", { weekday: "short" });
+    const meta = getWeatherMeta(code);
+
+    const card = document.createElement("article");
+    card.className = "forecast-card";
+    card.innerHTML = `
+      <span class="forecast-day">${dayLabel}</span>
+      <span class="forecast-icon" aria-hidden="true">${meta.icon}</span>
+      <div class="forecast-temps">
+        <span class="forecast-max">${formatTemperature(maxTemp)}</span>
+        <span class="forecast-min">${formatTemperature(minTemp)}</span>
+      </div>
+    `;
+
+    forecastGrid.appendChild(card);
+  }
+}
+
 // --- Controller Function ---
 async function handleSearch(city) {
   setStatus("Fetching atmospheric conditions...", "loading");
@@ -111,12 +146,13 @@ async function handleSearch(city) {
     const location = await fetchCoordinates(city);
     const weather = await fetchWeatherData(location.latitude, location.longitude);
 
-    // Cache state for instant unit toggling without refetching
+    // Cache responses for instant client-side unit toggling
     lastLocationData = location;
     lastWeatherData = weather;
     localStorage.setItem("skypulse_last_city", location.name);
 
     renderWeather(location, weather);
+    renderForecast(weather.daily);
     setStatus("");
   } catch (err) {
     setStatus(err.message, "error");
@@ -132,16 +168,16 @@ unitButtons.forEach((btn) => {
     currentUnit = selectedUnit;
     localStorage.setItem("skypulse_unit", currentUnit);
 
-    // Update active button state & accessibility attributes
     unitButtons.forEach((b) => {
       const isActive = b.dataset.unit === currentUnit;
       b.classList.toggle("active", isActive);
       b.setAttribute("aria-pressed", String(isActive));
     });
 
-    // Re-render immediately if data is already on screen
+    // Re-render both views instantly without hitting the network
     if (lastLocationData && lastWeatherData) {
       renderWeather(lastLocationData, lastWeatherData);
+      renderForecast(lastWeatherData.daily);
     }
   });
 });
@@ -158,14 +194,12 @@ searchForm.addEventListener("submit", (event) => {
 
 // --- Initial App Boot ---
 function initApp() {
-  // Sync button styles to saved preference
   unitButtons.forEach((btn) => {
     const isActive = btn.dataset.unit === currentUnit;
     btn.classList.toggle("active", isActive);
     btn.setAttribute("aria-pressed", String(isActive));
   });
 
-  // Auto-load last searched city if present
   const savedCity = localStorage.getItem("skypulse_last_city");
   if (savedCity) {
     handleSearch(savedCity);
