@@ -103,6 +103,24 @@ body {
 .search-bar button:hover {
   background-color: var(--accent-hover);
 }
+.geo-btn {
+  background-color: var(--card-bg);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.geo-btn:hover {
+  border-color: var(--accent);
+  background-color: rgba(56, 189, 248, 0.1);
+}
 
 /* --------------------------------------------------
    Weather Card & Status Display
